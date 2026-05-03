@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VersoVivo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:      #09090F;
+      --surface: #10101A;
+      --card:    #17172A;
+      --border:  #252540;
+      --muted:   #5B5B80;
+      --text:    #EDEDF8;
+      --primary: #8B5CF6;
+      --second:  #EC4899;
+      --grad:    linear-gradient(135deg, #8B5CF6, #EC4899);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ═══════════════════════════════
+       BOOT
+    ═══════════════════════════════ */
+    #boot {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1.2rem;
+      z-index: 1000;
+      transition: opacity 0.8s ease;
+    }
+    #boot.out { opacity: 0; pointer-events: none; }
+
+    .boot-name {
+      display: flex;
+      font-size: clamp(2.8rem, 9vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: 0.03em;
+    }
+    .boot-char {
+      background: var(--grad);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0;
+      transform: translateY(-28px) scale(0.7);
+      animation: charIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+    @keyframes charIn { to { opacity:1; transform:translateY(0) scale(1); } }
+
+    .boot-sub {
+      font-size: 0.78rem;
+      letter-spacing: 0.45em;
+      color: var(--muted);
+      text-transform: uppercase;
+      opacity: 0;
+      animation: fadeUp 0.6s ease 1.6s forwards;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+
+    .boot-track {
+      width: 200px; height: 2px;
+      background: #1A1A30;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 1.8rem;
+    }
+    .boot-fill {
+      height: 100%;
+      background: var(--grad);
+      width: 0%;
+      animation: barFill 2.2s ease 0.4s forwards;
+    }
+    @keyframes barFill { to { width: 100%; } }
+
+    /* ═══════════════════════════════
+       HOME
+    ═══════════════════════════════ */
+    #home {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 40%, #12122A 0%, var(--bg) 100%);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2.5rem;
+      z-index: 900;
+    }
+    #home.on { display: flex; }
+
+    .home-brand {
+      font-size: 2.2rem; font-weight: 900;
+      background: var(--grad);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.04em;
+    }
+
+    .new-proj {
+      border: 2px dashed var(--border);
+      border-radius: 22px;
+      padding: 3.5rem 6rem;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.3s cubic-bezier(.4,0,.2,1);
+    }
+    .new-proj:hover {
+      border-color: var(--primary);
+      color: #A78BFA;
+      background: rgba(139,92,246,.07);
+      transform: scale(1.04);
+      box-shadow: 0 0 50px rgba(139,92,246,.14);
+    }
+    .np-icon { font-size: 2.8rem; display: block; margin-bottom: 0.6rem; }
+    .np-lbl  { font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; }
+
+    .home-hint {
+      font-size: 0.75rem; color: var(--muted);
+      text-align: center; line-height: 1.7;
+    }
+
+    /* ═══════════════════════════════
+       EDITOR
+    ═══════════════════════════════ */
+    #editor {
+      position: fixed; inset: 0;
+      display: none; flex-direction: column;
+      background: var(--bg);
+    }
+    #editor.on { display: flex; }
+
+    /* Topbar */
+    .topbar {
+      height: 54px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 1rem;
+      flex-shrink: 0;
+    }
+    .topbar-brand {
+      font-size: 1.2rem; font-weight: 900;
+      background: var(--grad);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .img-count {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-left: 0.6rem;
+    }
+    .dl-btn {
+      display: flex; align-items: center; gap: 0.4rem;
+      background: var(--grad);
+      border: none; border-radius: 9px;
+      color: #fff; padding: 0.5rem 1.1rem;
+      font-size: 0.83rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.03em;
+      transition: opacity .18s, transform .15s;
+    }
+    .dl-btn:hover { opacity: .86; transform: scale(1.04); }
+    .dl-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+
+    /* Canvas area */
+    .canvas-area {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+      position: relative;
+      background: #060609;
+    }
+
+    /* Canvas wrapper — contains canvas + text overlay */
+    #cv-wrapper {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      flex-shrink: 0;
+    }
+    #cv {
+      display: block;
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px rgba(139,92,246,.12), 0 0 60px rgba(139,92,246,.10);
+    }
+
+    /* Overlay sits exactly over canvas */
+    #cv-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 8px;
+    }
+
+    /* ─── TEXT BOX ─── */
+    #text-box {
+      position: absolute;
+      border: 2px dashed rgba(255,255,255,0.55);
+      box-shadow: 0 0 0 1px rgba(139,92,246,0.5);
+      cursor: move;
+      pointer-events: all;
+      touch-action: none;
+      display: none;
+    }
+    #text-box.visible { display: block; }
+
+    /* Inner text container */
+    #tb-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      overflow: hidden;
+      pointer-events: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+    }
+
+    /* Resize handles */
+    .rh {
+      position: absolute;
+      width: 13px; height: 13px;
+      background: white;
+      border: 2px solid var(--primary);
+      border-radius: 3px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      z-index: 10;
+      pointer-events: all;
+    }
+    .rh[data-dir="nw"] { top:-7px;  left:-7px;              cursor: nw-resize; }
+    .rh[data-dir="n"]  { top:-7px;  left:calc(50% - 6px);   cursor: n-resize;  }
+    .rh[data-dir="ne"] { top:-7px;  right:-7px;             cursor: ne-resize; }
+    .rh[data-dir="w"]  { top:calc(50% - 6px); left:-7px;    cursor: w-resize;  }
+    .rh[data-dir="e"]  { top:calc(50% - 6px); right:-7px;   cursor: e-resize;  }
+    .rh[data-dir="sw"] { bottom:-7px; left:-7px;            cursor: sw-resize; }
+    .rh[data-dir="s"]  { bottom:-7px; left:calc(50% - 6px); cursor: s-resize;  }
+    .rh[data-dir="se"] { bottom:-7px; right:-7px;           cursor: se-resize; }
+
+    /* Dimension tooltip on resize */
+    #tb-size-tip {
+      position: absolute;
+      bottom: -26px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.75);
+      color: #C4B5FD;
+      font-size: 0.68rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      display: none;
+    }
+    #tb-size-tip.on { display: block; }
+
+    .cv-hint {
+      position: absolute;
+      inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 0.5rem;
+      pointer-events: none;
+      color: #2A2A45;
+    }
+    .cv-hint-icon  { font-size: 3rem; }
+    .cv-hint-text  { font-size: 0.9rem; line-height: 1.8; text-align: center; }
+    .cv-hint-text em { color: #3A3A60; font-style: normal; }
+
+    /* Toolbar */
+    .toolbar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* Sub toolbar */
+    .sub-tb {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .sub-tb::-webkit-scrollbar { display: none; }
+    .sub-tb.on { display: flex; }
+
+    /* Main toolbar */
+    .main-tb {
+      display: flex; align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.8rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .main-tb::-webkit-scrollbar { display: none; }
+
+    /* Tool button */
+    .tb {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 0.15rem;
+      padding: 0.45rem 0.75rem;
+      min-width: 58px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.7rem; font-weight: 600;
+      white-space: nowrap; flex-shrink: 0;
+      transition: all .18s;
+      user-select: none;
+    }
+    .tb .ic { font-size: 1.1rem; line-height: 1.2; }
+    .tb:hover { border-color: var(--primary); color: #A78BFA; background: rgba(139,92,246,.1); }
+    .tb.on   { border-color: var(--primary); background: rgba(139,92,246,.2); color: #C4B5FD; }
+
+    /* ═══════════════════════════════
+       OVERLAY + PANELS
+    ═══════════════════════════════ */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.58);
+      z-index: 9000; display: none;
+    }
+    .overlay.on { display: block; }
+
+    .panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      border-top: 1px solid var(--border);
+      padding: 0 1.2rem 2.2rem;
+      z-index: 9100;
+      max-height: 70vh;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    .panel.on { transform: translateY(0); }
+
+    .panel-drag {
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 1rem auto 0.8rem;
+    }
+    .panel-head {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.7rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-head h3 { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+    .panel-x {
+      background: none; border: none;
+      color: var(--muted); font-size: 1rem;
+      cursor: pointer; padding: 0.25rem 0.5rem;
+      border-radius: 6px; transition: all .15s;
+    }
+    .panel-x:hover { color: var(--text); background: var(--border); }
+
+    /* Speed */
+    .spd-row { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0; }
+    .spd-val {
+      font-size: 1.5rem; font-weight: 900;
+      color: var(--primary); min-width: 72px; text-align: center;
+    }
+    .spd-slider {
+      flex: 1; -webkit-appearance: none;
+      height: 5px; background: var(--border);
+      border-radius: 3px; outline: none;
+    }
+    .spd-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--grad);
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(139,92,246,.4);
+    }
+    .spd-labels {
+      display: flex; justify-content: space-between;
+      font-size: 0.7rem; color: var(--muted); margin-top: 0.4rem;
+    }
+
+    /* Font panel */
+    .font-search {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 0.6rem 0.9rem;
+      outline: none;
+      margin-bottom: 0.9rem;
+      transition: border-color .2s;
+      user-select: text;
+    }
+    .font-search:focus { border-color: var(--primary); }
+    .font-grid { display: flex; flex-direction: column; gap: 0.45rem; }
+    .font-item {
+      padding: 0.7rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .font-item:hover { border-color: var(--primary); background: rgba(139,92,246,.08); }
+    .font-item.sel { border-color: var(--primary); background: rgba(139,92,246,.16); }
+    .font-nm { font-size: 0.68rem; color: var(--muted); margin-bottom: 0.2rem; font-weight: 600; }
+    .font-pv { font-size: 1.2rem; color: var(--text); line-height: 1.4; }
+
+    /* Format */
+    .fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .fmt-btn {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem; font-weight: 600;
+      transition: all .18s; text-align: center;
+    }
+    .fmt-btn:hover { border-color: var(--primary); color: #A78BFA; }
+    .fmt-btn.on { border-color: var(--second); background: rgba(236,72,153,.15); color: #F9A8D4; }
+
+    /* Text panel */
+    .txt-area {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.97rem;
+      padding: 1rem;
+      min-height: 150px;
+      resize: vertical;
+      outline: none;
+      transition: border-color .2s;
+      user-select: text;
+      font-family: inherit;
+      line-height: 1.65;
+    }
+    .txt-area:focus { border-color: var(--primary); }
+    .apply-btn {
+      display: block; width: 100%;
+      margin-top: 0.8rem;
+      background: var(--grad);
+      border: none; border-radius: 10px;
+      color: #fff; padding: 0.88rem;
+      font-size: 0.95rem; font-weight: 800;
+      cursor: pointer; letter-spacing: 0.04em;
+      transition: opacity .2s;
+    }
+    .apply-btn:hover { opacity: .85; }
+
+    /* Color panel */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.6rem;
+    }
+    .color-dot {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .15s, border-color .15s;
+    }
+    .color-dot:hover { transform: scale(1.15); }
+    .color-dot.sel { border-color: #fff; transform: scale(1.1); }
+    .color-row {
+      display: flex; align-items: center; gap: 0.8rem;
+      margin-top: 1rem;
+    }
+    .color-row label { font-size: 0.82rem; color: var(--muted); }
+    input[type="color"] {
+      width: 42px; height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    /* Recording overlay */
+    #rec-ov {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.9);
+      z-index: 9200;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 1.2rem;
+    }
+    #rec-ov.on { display: flex; }
+    .rec-dot {
+      width: 14px; height: 14px;
+      background: #EF4444; border-radius: 50%;
+      box-shadow: 0 0 14px #EF4444;
+      animation: blink 1s ease infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.25;} }
+    .rec-title { font-size: 1.1rem; font-weight: 800; }
+    .rec-sub   { font-size: 0.85rem; color: var(--muted); }
+    .rec-track {
+      width: 300px; height: 5px;
+      background: #1A1A30; border-radius: 3px; overflow: hidden;
+    }
+    .rec-fill {
+      height: 100%;
+      background: var(--grad); border-radius: 3px;
+      width: 0%; transition: width .12s linear;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ────────────── BOOT ────────────── -->
+<div id="boot">
+  <div class="boot-name" id="boot-name"></div>
+  <div class="boot-sub">Poesia em Movimento</div>
+  <div class="boot-track"><div class="boot-fill"></div></div>
+</div>
+
+<!-- ────────────── HOME ────────────── -->
+<div id="home">
+  <div class="home-brand">VersoVivo</div>
+  <div class="new-proj" onclick="openEditor()">
+    <span class="np-icon">✦</span>
+    <span class="np-lbl">Novo Projeto +</span>
+  </div>
+  <div class="home-hint">
+    Crie vídeos com suas imagens e poemas<br>
+    de forma simples e bonita.
+  </div>
+</div>
+
+<!-- ────────────── EDITOR ────────────── -->
+<div id="editor">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div style="display:flex;align-items:center">
+      <span class="topbar-brand">VersoVivo</span>
+      <span class="img-count" id="img-count"></span>
+    </div>
+    <button class="dl-btn" id="dl-btn" onclick="startDownload()">↓ Baixar Vídeo</button>
+  </div>
+
+  <!-- Canvas + overlay wrapper -->
+  <div class="canvas-area" id="canvas-area">
+    <div id="cv-wrapper">
+      <canvas id="cv"></canvas>
+
+      <!-- HTML overlay for text box interaction -->
+      <div id="cv-overlay">
+        <div id="text-box">
+          <div id="tb-inner"></div>
+          <div id="tb-size-tip"></div>
+          <!-- 8 resize handles -->
+          <div class="rh" data-dir="nw"></div>
+          <div class="rh" data-dir="n"></div>
+          <div class="rh" data-dir="ne"></div>
+          <div class="rh" data-dir="w"></div>
+          <div class="rh" data-dir="e"></div>
+          <div class="rh" data-dir="sw"></div>
+          <div class="rh" data-dir="s"></div>
+          <div class="rh" data-dir="se"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cv-hint" id="cv-hint">
+      <div class="cv-hint-icon">🎬</div>
+      <div class="cv-hint-text">
+        Clique em <em>"Imagens"</em> na barra abaixo<br>
+        para adicionar suas fotos e começar.
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+
+    <!-- Sub-toolbar (aparece ao adicionar texto) -->
+    <div class="sub-tb" id="sub-tb">
+      <button class="tb" onclick="openPanel('fp')">
+        <span class="ic">Aa</span>
+        <span>Fontes</span>
+      </button>
+      <button class="tb" onclick="openPanel('fmt')">
+        <span class="ic">B/I</span>
+        <span>Formato</span>
+      </button>
+      <button class="tb" id="align-tb" onclick="cycleAlign()">
+        <span class="ic" id="align-ic">☰</span>
+        <span id="align-lbl">Centro</span>
+      </button>
+      <button class="tb" onclick="openPanel('cp')">
+        <span class="ic">🎨</span>
+        <span>Cor</span>
+      </button>
+    </div>
+
+    <!-- Main toolbar -->
+    <div class="main-tb">
+      <button class="tb" id="play-tb" onclick="togglePlay()">
+        <span class="ic" id="play-ic">⏸</span>
+        <span id="play-lbl">Pausar</span>
+      </button>
+      <button class="tb" onclick="pickImages()">
+        <span class="ic">🖼</span>
+        <span>Imagens</span>
+      </button>
+      <button class="tb" onclick="openPanel('sp')">
+        <span class="ic">⏩</span>
+        <span>Velocidade</span>
+      </button>
+      <button class="tb" onclick="openPanel('tp')">
+        <span class="ic">T</span>
+        <span>Texto</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- File input -->
+<input id="img-input" type="file" accept="image/*" multiple style="display:none"
+       onchange="loadImages(this.files)">
+
+<!-- Overlay -->
+<div class="overlay" id="ov" onclick="closePanels()"></div>
+
+<!-- ── Speed Panel ── -->
+<div class="panel" id="sp">
+  <div class="panel-drag"></div>
+  <div class="panel-head">
+    <h3>⏩ Velocidade das Imagens</h3>
+    <button class="panel-x" onclick="closePanels()">✕</button>
+  </div>
+  <div class="spd-row">
+    <span class="spd-val" id="spd-val">2.0s</span>
+    <input class="spd-slider" type="range" id="spd-range"
+           min="1" max="100" value="20"
+           oninput="onSpeedChange(this.value)">
+  </div>
+  <div class="spd-labels">
+    <span>0.1s — Muito Rápido</span>
+    <span>10s — Muito Lento</span>
+  </div>
+</div>
+
+<!-- ── Font Panel ── -->
+<div class="panel" id="fp" style="max-height:72vh;">
+  <div class="panel-drag"></div>
+  <div class="panel-head">
+    <h3>Aa Fontes de Texto</h3>
+    <button class="panel-x" onclick="closePanels()">✕</button>
+  </div>
+  <input class="font-search" type="text" id="font-search"
+         placeholder="Pesquisar fonte..."
+         oninput="filterFonts(this.value)"
+         autocomplete="off">
+  <div class="font-grid" id="font-grid"></div>
+</div>
+
+<!-- ── Format Panel ── -->
+<div class="panel" id="fmt">
+  <div class="panel-drag"></div>
+  <div class="panel-head">
+    <h3>Formato do Texto</h3>
+    <button class="panel-x" onclick="closePanels()">✕</button>
+  </div>
+  <div class="fmt-grid">
+    <button class="fmt-btn" id="fmt-bold"   onclick="toggleFmt('bold')">
+      <strong>N</strong>&ensp;Negrito
+    </button>
+    <button class="fmt-btn" id="fmt-italic" onclick="toggleFmt('italic')">
+      <em>I</em>&ensp;Itálico
+    </button>
+    <button class="fmt-btn" id="fmt-under"  onclick="toggleFmt('underline')">
+      <u>S</u>&ensp;Sublinhado
+    </button>
+    <button class="fmt-btn" id="fmt-strike" onclick="toggleFmt('strike')">
+      <s>T</s>&ensp;Tachado
+    </button>
+  </div>
+</div>
+
+<!-- ── Text Panel ── -->
+<div class="panel" id="tp">
+  <div class="panel-drag"></div>
+  <div class="panel-head">
+    <h3>T Texto do Poema</h3>
+    <button class="panel-x" onclick="closePanels()">✕</button>
+  </div>
+  <textarea class="txt-area" id="txt-input"
+    placeholder="Digite ou cole seu poema aqui...
+
+Cada linha do poema ficará visível
+sobre as imagens do vídeo."></textarea>
+  <button class="apply-btn" onclick="applyText()">✓ Aplicar Texto</button>
+</div>
+
+<!-- ── Color Panel ── -->
+<div class="panel" id="cp">
+  <div class="panel-drag"></div>
+  <div class="panel-head">
+    <h3>🎨 Cor do Texto</h3>
+    <button class="panel-x" onclick="closePanels()">✕</button>
+  </div>
+  <div class="color-grid" id="color-grid"></div>
+  <div class="color-row">
+    <label>Cor personalizada:</label>
+    <input type="color" id="custom-color" value="#ffffff" oninput="setColor(this.value)">
+  </div>
+</div>
+
+<!-- Recording overlay -->
+<div id="rec-ov">
+  <div class="rec-dot"></div>
+  <div class="rec-title">Gerando seu vídeo...</div>
+  <div class="rec-sub" id="rec-sub">Preparando...</div>
+  <div class="rec-track"><div class="rec-fill" id="rec-fill"></div></div>
+</div>
+
+<script>
+// ════════════════════════════════════
+//  FONTS LIST
+// ════════════════════════════════════
+const FONTS = [
+  'Playfair Display','Lora','Cormorant Garamond','EB Garamond',
+  'Libre Baskerville','Merriweather','Crimson Text','Spectral',
+  'Bitter','PT Serif','Source Serif 4','Noto Serif',
+  'Cinzel','Cinzel Decorative','Abril Fatface','Oswald',
+  'Great Vibes','Dancing Script','Satisfy','Sacramento',
+  'Pinyon Script','Alex Brush','Allura','Italianno',
+  'Tangerine','Kaushan Script','Pacifico','Lobster',
+  'Righteous','Fredoka One','Caveat','Indie Flower',
+  'Shadows Into Light','Patrick Hand','Permanent Marker',
+  'Amatic SC','Special Elite','Raleway','Josefin Sans',
+  'Quicksand','Nunito','Poppins','Montserrat',
+  'Exo 2','Ubuntu','Courier Prime','Share Tech Mono'
+];
+
+const PRESET_COLORS = [
+  '#FFFFFF','#FFFDE7','#FFD700','#FFC0CB','#FF69B4',
+  '#FF6B6B','#FF4500','#FF8C00','#32CD32','#00CED1',
+  '#1E90FF','#8A2BE2','#C0C0C0','#000000'
+];
+
+// ════════════════════════════════════
+//  STATE
+// ════════════════════════════════════
+const S = {
+  imgs: [], idx: 0, elapsed: 0, lastTs: 0,
+  playing: true, speed: 2.0,
+  text: '',
+  font: 'Playfair Display',
+  bold: false, italic: false, underline: false, strike: false,
+  align: 0,   // 0=center 1=right 2=left
+  color: '#FFFFFF',
+};
+
+// Text box state — positions as fractions of canvas size (0..1)
+const TBOX = {
+  show: false,
+  lf: 0.08, tf: 0.30,   // left, top
+  wf: 0.84, hf: 0.40,   // width, height
+  fontSize: 0,
+  // Pixel coords (cached from syncTextBox, used in drawText for exact alignment)
+  px: 0, py: 0, pw: 0, ph: 0,
+  // Interaction
+  action: null,          // 'drag' | 'resize' | null
+  dir: null,
+  sx: 0, sy: 0,
+  slf: 0, stf: 0, swf: 0, shf: 0,
+};
+
+const ALIGN_NAMES = ['center','right','left'];
+const ALIGN_ICS   = ['☰','➡','⬅'];
+const ALIGN_LBLS  = ['Centro','Direita','Esquerda'];
+
+// Off-screen canvas for font measurement
+const _mctx = document.createElement('canvas').getContext('2d');
+
+// ════════════════════════════════════
+//  BOOT ANIMATION
+// ════════════════════════════════════
+'VersoVivo'.split('').forEach((c, i) => {
+  const s = document.createElement('span');
+  s.className = 'boot-char';
+  s.textContent = c;
+  s.style.animationDelay = (0.07 + i * 0.1) + 's';
+  document.getElementById('boot-name').appendChild(s);
+});
+
+setTimeout(() => {
+  const b = document.getElementById('boot');
+  b.classList.add('out');
+  setTimeout(() => {
+    b.style.display = 'none';
+    document.getElementById('home').classList.add('on');
+  }, 820);
+}, 3400);
+
+// ════════════════════════════════════
+//  CANVAS SETUP
+// ════════════════════════════════════
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function openEditor() {
+  document.getElementById('home').classList.remove('on');
+  document.getElementById('editor').classList.add('on');
+  resizeCanvas();
+  initTextBoxEvents();
+  requestAnimationFrame(tick);
+}
+
+function resizeCanvas() {
+  const area = document.getElementById('canvas-area');
+  const aw = area.clientWidth  - 20;
+  const ah = area.clientHeight - 20;
+  // 9:16 portrait
+  let cw = ah * (9/16);
+  let ch = ah;
+  if (cw > aw) { cw = aw; ch = aw * (16/9); }
+  cv.width  = Math.floor(cw);
+  cv.height = Math.floor(ch);
+  if (TBOX.show) syncTextBox();
+  draw();
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('editor').classList.contains('on')) resizeCanvas();
+});
+
+// ════════════════════════════════════
+//  ANIMATION LOOP
+// ════════════════════════════════════
+function tick(ts) {
+  const dt = S.lastTs ? Math.min(ts - S.lastTs, 400) : 0;
+  S.lastTs = ts;
+
+  if (S.playing && S.imgs.length > 0) {
+    S.elapsed += dt;
+    if (S.elapsed >= S.speed * 1000) {
+      S.elapsed = 0;
+      S.idx = (S.idx + 1) % S.imgs.length;
+    }
+  }
+
+  draw();
+  requestAnimationFrame(tick);
+}
+
+function draw() {
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#09090F';
+  ctx.fillRect(0, 0, w, h);
+
+  const hasImgs = S.imgs.length > 0;
+  document.getElementById('cv-hint').style.display = hasImgs ? 'none' : 'flex';
+
+  if (hasImgs) {
+    const img = S.imgs[S.idx];
+    if (img?.complete && img.naturalWidth) {
+      const ir = img.naturalWidth / img.naturalHeight;
+      const cr = w / h;
+      let dw, dh, dx, dy;
+      if (ir > cr) { dh = h; dw = dh * ir; dx = (w - dw) / 2; dy = 0; }
+      else         { dw = w; dh = dw / ir; dx = 0; dy = (h - dh) / 2; }
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
+      ctx.drawImage(img, dx, dy, dw, dh);
+      ctx.restore();
+    }
+  }
+
+  if (TBOX.show && S.text.trim() && TBOX.fontSize > 0) drawText(w, h);
+}
+
+// ════════════════════════════════════
+//  TEXT RENDERING ON CANVAS
+// ════════════════════════════════════
+function drawText(w, h) {
+  const bx  = TBOX.lf * w;
+  const by  = TBOX.tf * h;
+  const bw  = TBOX.wf * w;
+  const bh  = TBOX.hf * h;
+  const pad = 10;
+  const fs  = TBOX.fontSize;
+
+  const fStr = (S.italic ? 'italic ' : '') + (S.bold ? 'bold ' : '') +
+               `${fs}px '${S.font}', Georgia, serif`;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
+
+  ctx.font        = fStr;
+  ctx.textAlign   = ALIGN_NAMES[S.align];
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle   = S.color;
+  ctx.shadowColor  = 'transparent';
+  ctx.shadowBlur   = 0;
+
+  const maxW  = bw - pad * 2;
+  const lh    = fs * 1.4;
+  const lines = wrapLines(ctx, S.text, maxW);
+  const totalH = lines.length * lh;
+
+  let y = by + (bh - totalH) / 2 + fs * 0.82;
+  const x = ALIGN_NAMES[S.align] === 'center' ? bx + bw / 2
+           : ALIGN_NAMES[S.align] === 'right'  ? bx + bw - pad
+           : bx + pad;
+
+  for (const line of lines) {
+    if (line) {
+      ctx.fillText(line, x, y);
+
+      if (S.underline || S.strike) {
+        const lw = ctx.measureText(line).width;
+        const lx = ALIGN_NAMES[S.align] === 'center' ? x - lw / 2
+                 : ALIGN_NAMES[S.align] === 'right'  ? x - lw : x;
+        ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = S.color;
+        ctx.lineWidth   = Math.max(1.5, fs / 24);
+        if (S.underline) {
+          ctx.beginPath();
+          ctx.moveTo(lx, y + fs * 0.14); ctx.lineTo(lx + lw, y + fs * 0.14); ctx.stroke();
+        }
+        if (S.strike) {
+          ctx.beginPath();
+          ctx.moveTo(lx, y - fs * 0.35); ctx.lineTo(lx + lw, y - fs * 0.35); ctx.stroke();
+        }
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      }
+    }
+    y += lh;
+  }
+  ctx.restore();
+}
+
+function wrapLines(ctx, text, maxW) {
+  const result = [];
+  for (const para of text.split('\n')) {
+    if (!para.trim()) { result.push(''); continue; }
+    const words = para.split(' ');
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxW && line) {
+        result.push(line.trimEnd());
+        line = word;
+      } else line = test;
+    }
+    // Palavra única mais larga que a caixa: deixa passar (canvas vai clipar)
+    if (line) result.push(line.trimEnd());
+  }
+  return result;
+}
+
+// ════════════════════════════════════
+//  FONT SIZE AUTO-FIT (binary search)
+// ════════════════════════════════════
+function calcFitFontSize(text, font, bold, italic, boxPxW, boxPxH) {
+  const pad = 10;
+  const mw  = boxPxW - pad * 2;
+  const mh  = boxPxH - pad * 2;
+  if (mw <= 10 || mh <= 10 || !text.trim()) return 12;
+
+  function totalHeight(size) {
+    _mctx.font = (italic ? 'italic ' : '') + (bold ? 'bold ' : '') +
+                 `${size}px '${font}', Georgia, serif`;
+    const lines = [];
+    for (const para of text.split('\n')) {
+      if (!para.trim()) { lines.push(''); continue; }
+      const words = para.split(' ');
+      let line = '';
+      for (const w of words) {
+        const t = line ? line + ' ' + w : w;
+        if (_mctx.measureText(t).width > mw && line) {
+          lines.push(line); line = w;
+        } else line = t;
+      }
+      if (line) lines.push(line);
+    }
+    return lines.length * size * 1.4;
+  }
+
+  let lo = 6, hi = Math.min(mw * 0.9, mh * 0.9);
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (totalHeight(mid) <= mh) lo = mid; else hi = mid;
+  }
+  return Math.max(6, lo);
+}
+
+// ════════════════════════════════════
+//  TEXT BOX — SYNC OVERLAY → STATE
+// ════════════════════════════════════
+function syncTextBox() {
+  const tb = document.getElementById('text-box');
+  const ov = document.getElementById('cv-overlay');
+
+  if (!TBOX.show || !S.text.trim()) {
+    tb.classList.remove('visible');
+    document.getElementById('sub-tb').classList.remove('on');
+    return;
+  }
+
+  tb.classList.add('visible');
+  document.getElementById('sub-tb').classList.add('on');
+
+  const W = ov.offsetWidth;
+  const H = ov.offsetHeight;
+
+  // Clamp fractions
+  TBOX.lf = Math.max(0, Math.min(1 - TBOX.wf, TBOX.lf));
+  TBOX.tf = Math.max(0, Math.min(1 - TBOX.hf, TBOX.tf));
+
+  const px = TBOX.lf * W;
+  const py = TBOX.tf * H;
+  const pw = TBOX.wf * W;
+  const ph = TBOX.hf * H;
+
+  tb.style.left   = px + 'px';
+  tb.style.top    = py + 'px';
+  tb.style.width  = pw + 'px';
+  tb.style.height = ph + 'px';
+
+  // Calculate font size using canvas-accurate measurement
+  const fs = calcFitFontSize(S.text, S.font, S.bold, S.italic, pw, ph);
+  TBOX.fontSize = fs;
+
+  // O canvas é quem renderiza o texto — o overlay só mostra borda e handles
+}
+
+// ════════════════════════════════════
+//  TEXT BOX — DRAG & RESIZE EVENTS
+// ════════════════════════════════════
+let _eventsInited = false;
+
+function initTextBoxEvents() {
+  if (_eventsInited) return;
+  _eventsInited = true;
+
+  const tb = document.getElementById('text-box');
+
+  function startAction(clientX, clientY, target) {
+    if (target.classList.contains('rh')) {
+      TBOX.action = 'resize';
+      TBOX.dir    = target.dataset.dir;
+    } else {
+      TBOX.action = 'drag';
+    }
+    TBOX.sx = clientX; TBOX.sy = clientY;
+    TBOX.slf = TBOX.lf; TBOX.stf = TBOX.tf;
+    TBOX.swf = TBOX.wf; TBOX.shf = TBOX.hf;
+  }
+
+  function moveAction(clientX, clientY) {
+    if (!TBOX.action) return;
+    const ov = document.getElementById('cv-overlay');
+    const W  = ov.offsetWidth;
+    const H  = ov.offsetHeight;
+    const dx = (clientX - TBOX.sx) / W;
+    const dy = (clientY - TBOX.sy) / H;
+    const MIN = 0.06;
+
+    if (TBOX.action === 'drag') {
+      TBOX.lf = Math.max(0, Math.min(1 - TBOX.wf, TBOX.slf + dx));
+      TBOX.tf = Math.max(0, Math.min(1 - TBOX.hf, TBOX.stf + dy));
+    } else {
+      const d = TBOX.dir;
+      if (d.includes('e')) {
+        TBOX.wf = Math.max(MIN, Math.min(1 - TBOX.slf, TBOX.swf + dx));
+      }
+      if (d.includes('s')) {
+        TBOX.hf = Math.max(MIN, Math.min(1 - TBOX.stf, TBOX.shf + dy));
+      }
+      if (d.includes('w')) {
+        const nw = Math.max(MIN, TBOX.swf - dx);
+        const nl = TBOX.slf + TBOX.swf - nw;
+        if (nl >= 0) { TBOX.wf = nw; TBOX.lf = nl; }
+      }
+      if (d.includes('n')) {
+        const nh = Math.max(MIN, TBOX.shf - dy);
+        const nt = TBOX.stf + TBOX.shf - nh;
+        if (nt >= 0) { TBOX.hf = nh; TBOX.tf = nt; }
+      }
+      // Show size tooltip
+      const pw = Math.round(TBOX.wf * W);
+      const ph = Math.round(TBOX.hf * H);
+      const tip = document.getElementById('tb-size-tip');
+      tip.textContent = `${pw} × ${ph}`;
+      tip.classList.add('on');
+    }
+
+    syncTextBox();
+  }
+
+  function endAction() {
+    TBOX.action = null;
+    document.getElementById('tb-size-tip').classList.remove('on');
+  }
+
+  // Mouse events
+  tb.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startAction(e.clientX, e.clientY, e.target);
+  });
+  document.addEventListener('mousemove', e => moveAction(e.clientX, e.clientY));
+  document.addEventListener('mouseup',   endAction);
+
+  // Touch events
+  tb.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    startAction(t.clientX, t.clientY, e.target);
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!TBOX.action) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    moveAction(t.clientX, t.clientY);
+  }, { passive: false });
+
+  document.addEventListener('touchend', endAction);
+}
+
+// ════════════════════════════════════
+//  CONTROLS
+// ════════════════════════════════════
+function togglePlay() {
+  S.playing = !S.playing;
+  S.elapsed = 0;
+  document.getElementById('play-ic').textContent  = S.playing ? '⏸' : '▶';
+  document.getElementById('play-lbl').textContent = S.playing ? 'Pausar' : 'Retomar';
+  document.getElementById('play-tb').classList.toggle('on', !S.playing);
+}
+
+function pickImages() { document.getElementById('img-input').click(); }
+
+function loadImages(files) {
+  if (!files.length) return;
+  S.imgs = []; S.idx = 0; S.elapsed = 0;
+  let done = 0;
+  const arr = new Array(files.length);
+  Array.from(files).forEach((f, i) => {
+    const img = new Image();
+    img.onload = () => {
+      arr[i] = img;
+      if (++done === files.length) {
+        S.imgs = arr;
+        S.playing = true; S.elapsed = 0;
+        document.getElementById('play-ic').textContent  = '⏸';
+        document.getElementById('play-lbl').textContent = 'Pausar';
+        document.getElementById('play-tb').classList.remove('on');
+        document.getElementById('img-count').textContent =
+          `· ${files.length} imagem${files.length > 1 ? 'ns' : ''}`;
+      }
+    };
+    img.src = URL.createObjectURL(f);
+  });
+}
+
+function onSpeedChange(v) {
+  S.speed = parseFloat((v / 10).toFixed(1));
+  document.getElementById('spd-val').textContent = S.speed.toFixed(1) + 's';
+}
+
+function applyText() {
+  S.text = document.getElementById('txt-input').value;
+  closePanels();
+  if (S.text.trim()) {
+    TBOX.show = true;
+    syncTextBox();
+  } else {
+    TBOX.show = false;
+    syncTextBox();
+  }
+}
+
+function cycleAlign() {
+  S.align = (S.align + 1) % 3;
+  document.getElementById('align-ic').textContent  = ALIGN_ICS[S.align];
+  document.getElementById('align-lbl').textContent = ALIGN_LBLS[S.align];
+  syncTextBox();
+}
+
+function toggleFmt(type) {
+  S[type] = !S[type];
+  const map = { bold:'fmt-bold', italic:'fmt-italic', underline:'fmt-under', strike:'fmt-strike' };
+  document.getElementById(map[type]).classList.toggle('on', S[type]);
+  syncTextBox();
+}
+
+function setColor(hex) {
+  S.color = hex;
+  document.getElementById('custom-color').value = hex;
+  document.querySelectorAll('.color-dot').forEach(d => {
+    d.classList.toggle('sel', d.dataset.color === hex);
+  });
+  syncTextBox();
+}
+
+// ════════════════════════════════════
+//  PANELS
+// ════════════════════════════════════
+function openPanel(id) {
+  closePanels();
+  document.getElementById('ov').classList.add('on');
+  document.getElementById(id).classList.add('on');
+  if (id === 'fp') buildFontPanel();
+  if (id === 'cp') buildColorPanel();
+}
+
+function closePanels() {
+  document.querySelectorAll('.panel.on').forEach(p => p.classList.remove('on'));
+  document.getElementById('ov').classList.remove('on');
+}
+
+// ─── Font panel ───────────────────
+let fontsLoaded = false;
+let allFontItems = [];
+
+function buildFontPanel() {
+  if (!fontsLoaded) {
+    const link = document.createElement('link');
+    link.rel  = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' +
+      FONTS.map(f => encodeURIComponent(f).replace(/%20/g, '+')).join('&family=') +
+      '&display=swap';
+    document.head.appendChild(link);
+    fontsLoaded = true;
+  }
+
+  const grid    = document.getElementById('font-grid');
+  const preview = S.text
+    ? S.text.replace(/\n/g,' ').substring(0, 42).trim() || 'Poesia que vive...'
+    : 'Poesia que vive...';
+
+  grid.innerHTML = '';
+  allFontItems   = [];
+
+  FONTS.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'font-item' + (S.font === f ? ' sel' : '');
+    div.innerHTML = `<div class="font-nm">${f}</div>
+      <div class="font-pv" style="font-family:'${f}',serif">${preview}</div>`;
+    div.onclick = () => { S.font = f; closePanels(); syncTextBox(); };
+    grid.appendChild(div);
+    allFontItems.push({ el: div, name: f.toLowerCase() });
+  });
+}
+
+function filterFonts(q) {
+  const term = q.toLowerCase().trim();
+  allFontItems.forEach(({ el, name }) => {
+    el.style.display = (!term || name.includes(term)) ? '' : 'none';
+  });
+}
+
+// ─── Color panel ──────────────────
+function buildColorPanel() {
+  const grid = document.getElementById('color-grid');
+  grid.innerHTML = '';
+  PRESET_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'color-dot' + (S.color === c ? ' sel' : '');
+    d.style.background = c;
+    d.style.border = c === '#000000' ? '2px solid #444' : '';
+    d.dataset.color = c;
+    d.onclick = () => setColor(c);
+    grid.appendChild(d);
+  });
+  document.getElementById('custom-color').value = S.color;
+}
+
+// ════════════════════════════════════
+//  DOWNLOAD (MediaRecorder)
+// ════════════════════════════════════
+async function startDownload() {
+  if (!S.imgs.length) {
+    alert('Adicione imagens ao projeto primeiro!');
+    return;
+  }
+
+  const btn  = document.getElementById('dl-btn');
+  const ov   = document.getElementById('rec-ov');
+  const bar  = document.getElementById('rec-fill');
+  const sub  = document.getElementById('rec-sub');
+
+  btn.disabled = true;
+  ov.classList.add('on');
+  bar.style.width = '0%';
+  sub.textContent = 'Iniciando gravação...';
+
+  // Hide text box handles during recording (text still renders on canvas)
+  document.getElementById('text-box').style.display = 'none';
+  const wasPlaying = S.playing;
+
+  try {
+    const TYPES = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+    const mime  = TYPES.find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+    const stream = cv.captureStream(30);
+    const rec    = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : {});
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+    S.idx = 0; S.elapsed = 0; S.lastTs = 0; S.playing = true;
+    rec.start(100);
+
+    const total = S.imgs.length * S.speed * 1000;
+    const t0    = performance.now();
+
+    await new Promise(resolve => {
+      const iv = setInterval(() => {
+        const el  = performance.now() - t0;
+        const pct = Math.min(100, (el / total) * 100);
+        bar.style.width = pct + '%';
+        const cur = Math.min(S.imgs.length, Math.floor(el / (S.speed * 1000)) + 1);
+        sub.textContent = `Imagem ${cur} de ${S.imgs.length}...`;
+        if (el >= total + 500) { clearInterval(iv); resolve(); }
+      }, 120);
+    });
+
+    rec.stop();
+    stream.getTracks().forEach(t => t.stop());
+    await new Promise(r => { rec.onstop = r; });
+
+    bar.style.width = '100%';
+    sub.textContent = 'Finalizando download...';
+    await new Promise(r => setTimeout(r, 300));
+
+    const ext  = mime.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type: mime || 'video/webm' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `VersoVivo_${new Date().toISOString().slice(0,10)}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+
+  } catch (err) {
+    console.error(err);
+    alert('Erro ao gerar vídeo:\n' + err.message);
+  } finally {
+    ov.classList.remove('on');
+    btn.disabled = false;
+    S.playing    = wasPlaying;
+    S.idx = 0; S.elapsed = 0;
+    // Restore text box visibility
+    if (TBOX.show && S.text.trim()) {
+      document.getElementById('text-box').style.display = 'block';
+    }
+  }
+}
+</script>
+</body>
+</html>
