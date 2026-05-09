@@ -6,7 +6,7 @@
   <title>VersoVivo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Sacramento&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -37,54 +37,27 @@
     #boot {
       position: fixed; inset: 0;
       background: var(--bg);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 1.2rem;
       z-index: 1000;
-      transition: opacity 0.8s ease;
     }
-    #boot.out { opacity: 0; pointer-events: none; }
-
-    .boot-name {
-      display: flex;
-      font-size: clamp(2.8rem, 9vw, 4.5rem);
-      font-weight: 900;
-      letter-spacing: 0.03em;
+    #boot-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      display: block;
     }
-    .boot-char {
-      background: var(--grad);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-      opacity: 0;
-      transform: translateY(-28px) scale(0.7);
-      animation: charIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;
-    }
-    @keyframes charIn { to { opacity:1; transform:translateY(0) scale(1); } }
-
-    .boot-sub {
-      font-size: 0.78rem;
-      letter-spacing: 0.45em;
+    #boot-sub {
+      position: absolute;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 0.76rem;
+      letter-spacing: 0.5em;
       color: var(--muted);
       text-transform: uppercase;
       opacity: 0;
-      animation: fadeUp 0.6s ease 1.6s forwards;
+      transform: translateY(10px);
+      pointer-events: none;
+      /* transition driven by JS */
     }
-    @keyframes fadeUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
-
-    .boot-track {
-      width: 200px; height: 2px;
-      background: #1A1A30;
-      border-radius: 2px;
-      overflow: hidden;
-      margin-top: 1.8rem;
-    }
-    .boot-fill {
-      height: 100%;
-      background: var(--grad);
-      width: 0%;
-      animation: barFill 2.2s ease 0.4s forwards;
-    }
-    @keyframes barFill { to { width: 100%; } }
 
     /* ═══════════════════════════════
        HOME
@@ -539,9 +512,8 @@
 
 <!-- ────────────── BOOT ────────────── -->
 <div id="boot">
-  <div class="boot-name" id="boot-name"></div>
-  <div class="boot-sub">Poesia em Movimento</div>
-  <div class="boot-track"><div class="boot-fill"></div></div>
+  <canvas id="boot-canvas"></canvas>
+  <div id="boot-sub">Poesia em Movimento</div>
 </div>
 
 <!-- ────────────── HOME ────────────── -->
@@ -595,8 +567,8 @@
     <div class="cv-hint" id="cv-hint">
       <div class="cv-hint-icon">🎬</div>
       <div class="cv-hint-text">
-        Clique em <em>"Imagens"</em> na barra abaixo<br>
-        para adicionar suas fotos e começar.
+        Clique em <em>"Imagens"</em> para múltiplas fotos<br>
+        ou <em>"Vídeo"</em> para um único vídeo de fundo.
       </div>
     </div>
   </div>
@@ -634,6 +606,10 @@
         <span class="ic">🖼</span>
         <span>Imagens</span>
       </button>
+      <button class="tb" onclick="pickVideo()">
+        <span class="ic">🎬</span>
+        <span>Vídeo</span>
+      </button>
       <button class="tb" onclick="openPanel('sp')">
         <span class="ic">⏩</span>
         <span>Velocidade</span>
@@ -646,9 +622,11 @@
   </div>
 </div>
 
-<!-- File input -->
+<!-- File inputs -->
 <input id="img-input" type="file" accept="image/*" multiple style="display:none"
        onchange="loadImages(this.files)">
+<input id="video-input" type="file" accept="video/*" style="display:none"
+       onchange="loadVideo(this.files[0])">
 
 <!-- Overlay -->
 <div class="overlay" id="ov" onclick="closePanels()"></div>
@@ -775,8 +753,11 @@ const PRESET_COLORS = [
 //  STATE
 // ════════════════════════════════════
 const S = {
+  mode: 'none',            // 'none' | 'images' | 'video'
   imgs: [], idx: 0, elapsed: 0, lastTs: 0,
+  videoEl: null, videoReady: false,
   playing: true, speed: 2.0,
+  recording: false,        // true durante startDownload — tick() cede controle de S.idx ao recLoop
   text: '',
   font: 'Playfair Display',
   bold: false, italic: false, underline: false, strike: false,
@@ -803,28 +784,165 @@ const ALIGN_NAMES = ['center','right','left'];
 const ALIGN_ICS   = ['☰','➡','⬅'];
 const ALIGN_LBLS  = ['Centro','Direita','Esquerda'];
 
-// Off-screen canvas for font measurement
-const _mctx = document.createElement('canvas').getContext('2d');
 
 // ════════════════════════════════════
-//  BOOT ANIMATION
+//  BOOT ANIMATION — iPhone "Hello" canvas writing effect
 // ════════════════════════════════════
-'VersoVivo'.split('').forEach((c, i) => {
-  const s = document.createElement('span');
-  s.className = 'boot-char';
-  s.textContent = c;
-  s.style.animationDelay = (0.07 + i * 0.1) + 's';
-  document.getElementById('boot-name').appendChild(s);
-});
+(function bootHello() {
+  const WORD        = 'VersoVivo';
+  const FONT_FAMILY = "'Sacramento', cursive";
+  const WRITE_START = 0.25;   // seconds before pen starts
+  const WRITE_DUR   = 2.0;    // seconds to write the word
+  const HOLD_DUR    = 0.55;   // seconds to hold fully drawn
+  const FADE_DUR    = 0.55;   // seconds for whole screen fade-out
+  const SUB_IN_AT   = 1.9;    // seconds: subtitle starts fading in
+  const SUB_IN_DUR  = 0.45;   // seconds for subtitle fade-in
+  const TOTAL       = WRITE_START + WRITE_DUR + HOLD_DUR + FADE_DUR + 0.15;
 
-setTimeout(() => {
-  const b = document.getElementById('boot');
-  b.classList.add('out');
-  setTimeout(() => {
-    b.style.display = 'none';
-    document.getElementById('home').classList.add('on');
-  }, 820);
-}, 3400);
+  const bootEl  = document.getElementById('boot');
+  const subEl   = document.getElementById('boot-sub');
+  const bCv     = document.getElementById('boot-canvas');
+  const bCtx    = bCv.getContext('2d');
+
+  let startTime = null;
+
+  function resize() {
+    bCv.width  = bootEl.offsetWidth  || window.innerWidth;
+    bCv.height = bootEl.offsetHeight || window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Easing: ease-in-out with subtle micro-undulations for organic feel
+  function writeEase(t) {
+    // Smooth-step base
+    const s = t * t * (3 - 2 * t);
+    // Tiny undulation: slows briefly twice like a real pen stroke
+    const undulate = 0.018 * Math.sin(t * Math.PI * 5);
+    return Math.min(1, Math.max(0, s + undulate));
+  }
+
+  function drawFrame(ts) {
+    if (!startTime) startTime = ts;
+    const elapsed = (ts - startTime) / 1000;
+
+    const W = bCv.width, H = bCv.height;
+    bCtx.clearRect(0, 0, W, H);
+
+    // Background
+    bCtx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg').trim() || '#09090F';
+    bCtx.fillRect(0, 0, W, H);
+
+    // ── Text progress ──────────────────────────────────────────
+    const writeRaw = (elapsed - WRITE_START) / WRITE_DUR;
+    const writeT   = Math.min(1, Math.max(0, writeRaw));
+    const progress = writeEase(writeT);
+
+    if (writeT > 0) {
+      const fontSize = Math.min(W * 0.18, H * 0.22, 120);
+      bCtx.font = `${fontSize}px ${FONT_FAMILY}`;
+      bCtx.textAlign    = 'center';
+      bCtx.textBaseline = 'middle';
+
+      const cx = W / 2, cy = H / 2;
+      const fullW = bCtx.measureText(WORD).width;
+
+      // Clip to revealed portion
+      bCtx.save();
+      bCtx.beginPath();
+      bCtx.rect(cx - fullW * 0.55, 0, fullW * 1.1 * progress, H);
+      bCtx.clip();
+
+      // Gradient fill: purple → pink
+      const grad = bCtx.createLinearGradient(cx - fullW / 2, 0, cx + fullW / 2, 0);
+      grad.addColorStop(0,   '#c084fc');
+      grad.addColorStop(0.5, '#e879f9');
+      grad.addColorStop(1,   '#f472b6');
+      bCtx.fillStyle = grad;
+      bCtx.fillText(WORD, cx, cy);
+      bCtx.restore();
+    }
+
+    // ── Pen glow tip ───────────────────────────────────────────
+    if (writeT > 0 && writeT < 1) {
+      const fontSize = Math.min(W * 0.18, H * 0.22, 120);
+      bCtx.font = `${fontSize}px ${FONT_FAMILY}`;
+      bCtx.textAlign    = 'center';
+      bCtx.textBaseline = 'middle';
+
+      const cx = W / 2, cy = H / 2;
+      const fullW = bCtx.measureText(WORD).width;
+
+      // Pen X tracks the revealed edge
+      const penX = (cx - fullW * 0.55) + fullW * 1.1 * progress;
+      // Pen Y follows a slight cursive arc
+      const arcOffset = Math.sin(progress * Math.PI) * (fontSize * 0.08);
+      const penY = cy - arcOffset;
+
+      // Outer halo
+      const halo = bCtx.createRadialGradient(penX, penY, 0, penX, penY, fontSize * 0.55);
+      halo.addColorStop(0,   'rgba(232, 121, 249, 0.22)');
+      halo.addColorStop(0.5, 'rgba(192, 132, 252, 0.10)');
+      halo.addColorStop(1,   'rgba(192, 132, 252, 0)');
+      bCtx.beginPath();
+      bCtx.arc(penX, penY, fontSize * 0.55, 0, Math.PI * 2);
+      bCtx.fillStyle = halo;
+      bCtx.fill();
+
+      // Inner ring
+      const ring = bCtx.createRadialGradient(penX, penY, 0, penX, penY, fontSize * 0.18);
+      ring.addColorStop(0,   'rgba(255, 255, 255, 0.90)');
+      ring.addColorStop(0.4, 'rgba(232, 121, 249, 0.75)');
+      ring.addColorStop(1,   'rgba(192, 132, 252, 0)');
+      bCtx.beginPath();
+      bCtx.arc(penX, penY, fontSize * 0.18, 0, Math.PI * 2);
+      bCtx.fillStyle = ring;
+      bCtx.fill();
+
+      // White core dot
+      bCtx.beginPath();
+      bCtx.arc(penX, penY, fontSize * 0.035, 0, Math.PI * 2);
+      bCtx.fillStyle = 'rgba(255,255,255,0.98)';
+      bCtx.fill();
+    }
+
+    // ── Subtitle fade-in ───────────────────────────────────────
+    const subProgress = Math.min(1, Math.max(0, (elapsed - SUB_IN_AT) / SUB_IN_DUR));
+    if (subEl) {
+      subEl.style.opacity   = subProgress;
+      subEl.style.transform = `translateY(${(1 - subProgress) * 10}px)`;
+      const subTop = H / 2 + Math.min(W * 0.18, H * 0.22, 120) * 0.85;
+      subEl.style.top = subTop + 'px';
+    }
+
+    // ── Whole-screen fade-out ──────────────────────────────────
+    const fadeStart = WRITE_START + WRITE_DUR + HOLD_DUR;
+    const fadeT     = Math.min(1, Math.max(0, (elapsed - fadeStart) / FADE_DUR));
+    if (fadeT > 0) {
+      bCtx.globalAlpha = fadeT;
+      bCtx.fillStyle   = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg').trim() || '#09090F';
+      bCtx.fillRect(0, 0, W, H);
+      bCtx.globalAlpha = 1;
+      if (subEl) subEl.style.opacity = Math.max(0, subProgress - fadeT);
+    }
+
+    // ── Done ──────────────────────────────────────────────────
+    if (elapsed >= TOTAL) {
+      bootEl.style.display = 'none';
+      document.getElementById('home').classList.add('on');
+      return;
+    }
+
+    requestAnimationFrame(drawFrame);
+  }
+
+  // Wait for Sacramento font, then kick off
+  document.fonts.ready.then(() => {
+    requestAnimationFrame(drawFrame);
+  });
+})();
 
 // ════════════════════════════════════
 //  CANVAS SETUP
@@ -832,12 +950,16 @@ setTimeout(() => {
 const cv  = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 
+let _rafId = null; // referência global para o loop principal
+
 function openEditor() {
   document.getElementById('home').classList.remove('on');
   document.getElementById('editor').classList.add('on');
   resizeCanvas();
   initTextBoxEvents();
-  requestAnimationFrame(tick);
+  // Cancela loop anterior antes de iniciar — evita múltiplos loops paralelos
+  if (_rafId !== null) cancelAnimationFrame(_rafId);
+  _rafId = requestAnimationFrame(tick);
 }
 
 function resizeCanvas() {
@@ -865,7 +987,8 @@ function tick(ts) {
   const dt = S.lastTs ? Math.min(ts - S.lastTs, 400) : 0;
   S.lastTs = ts;
 
-  if (S.playing && S.imgs.length > 0) {
+  // Não modifica S.idx durante a gravação — recLoop assume controle exclusivo
+  if (!S.recording && S.playing && S.mode === 'images' && S.imgs.length > 0) {
     S.elapsed += dt;
     if (S.elapsed >= S.speed * 1000) {
       S.elapsed = 0;
@@ -874,7 +997,7 @@ function tick(ts) {
   }
 
   draw();
-  requestAnimationFrame(tick);
+  _rafId = requestAnimationFrame(tick);
 }
 
 function draw() {
@@ -883,54 +1006,53 @@ function draw() {
   ctx.fillStyle = '#09090F';
   ctx.fillRect(0, 0, w, h);
 
-  const hasImgs = S.imgs.length > 0;
-  document.getElementById('cv-hint').style.display = hasImgs ? 'none' : 'flex';
+  const hasMedia = S.mode === 'images' ? S.imgs.length > 0
+                 : S.mode === 'video'  ? (S.videoEl && S.videoReady) : false;
+  document.getElementById('cv-hint').style.display = hasMedia ? 'none' : 'flex';
 
-  if (hasImgs) {
-    const img = S.imgs[S.idx];
-    if (img?.complete && img.naturalWidth) {
-      const ir = img.naturalWidth / img.naturalHeight;
-      const cr = w / h;
-      let dw, dh, dx, dy;
-      if (ir > cr) { dh = h; dw = dh * ir; dx = (w - dw) / 2; dy = 0; }
-      else         { dw = w; dh = dw / ir; dx = 0; dy = (h - dh) / 2; }
-      ctx.save();
-      ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
-      ctx.drawImage(img, dx, dy, dw, dh);
-      ctx.restore();
-    }
-  }
+  drawMedia(ctx, w, h);
 
   if (TBOX.show && S.text.trim() && TBOX.fontSize > 0) drawText(w, h);
 }
 
 // ════════════════════════════════════
-//  TEXT RENDERING ON CANVAS
+//  SHARED RENDER HELPERS
 // ════════════════════════════════════
-function drawText(w, h) {
-  const bx  = TBOX.lf * w;
-  const by  = TBOX.tf * h;
-  const bw  = TBOX.wf * w;
-  const bh  = TBOX.hf * h;
-  const pad = 10;
-  const fs  = TBOX.fontSize;
 
+// Draw the current media (image or video) cover-fit into any canvas context
+function drawMedia(tctx, w, h) {
+  let src = null;
+  if (S.mode === 'images' && S.imgs.length > 0) src = S.imgs[S.idx];
+  else if (S.mode === 'video' && S.videoEl && S.videoReady) src = S.videoEl;
+  if (!src) return;
+  const sw = src.naturalWidth  || src.videoWidth  || 1;
+  const sh = src.naturalHeight || src.videoHeight || 1;
+  const ir = sw / sh, cr = w / h;
+  let dw, dh, dx, dy;
+  if (ir > cr) { dh = h; dw = dh * ir; dx = (w - dw) / 2; dy = 0; }
+  else         { dw = w; dh = dw / ir; dx = 0;             dy = (h - dh) / 2; }
+  tctx.save();
+  tctx.beginPath(); tctx.rect(0, 0, w, h); tctx.clip();
+  tctx.drawImage(src, dx, dy, dw, dh);
+  tctx.restore();
+}
+
+// Draw text into any canvas context at explicit pixel coords
+function drawTextTo(tctx, bx, by, bw, bh, pad, fs) {
   const fStr = (S.italic ? 'italic ' : '') + (S.bold ? 'bold ' : '') +
                `${fs}px '${S.font}', Georgia, serif`;
-
-  ctx.save();
-  ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
-
-  ctx.font        = fStr;
-  ctx.textAlign   = ALIGN_NAMES[S.align];
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle   = S.color;
-  ctx.shadowColor  = 'transparent';
-  ctx.shadowBlur   = 0;
+  tctx.save();
+  tctx.beginPath(); tctx.rect(bx, by, bw, bh); tctx.clip();
+  tctx.font         = fStr;
+  tctx.textAlign    = ALIGN_NAMES[S.align];
+  tctx.textBaseline = 'alphabetic';
+  tctx.fillStyle    = S.color;
+  tctx.shadowColor  = 'transparent';
+  tctx.shadowBlur   = 0;
 
   const maxW  = bw - pad * 2;
   const lh    = fs * 1.4;
-  const lines = wrapLines(ctx, S.text, maxW);
+  const lines = wrapLines(tctx, S.text, maxW);
   const totalH = lines.length * lh;
 
   let y = by + (bh - totalH) / 2 + fs * 0.82;
@@ -940,29 +1062,38 @@ function drawText(w, h) {
 
   for (const line of lines) {
     if (line) {
-      ctx.fillText(line, x, y);
-
+      tctx.fillText(line, x, y);
       if (S.underline || S.strike) {
-        const lw = ctx.measureText(line).width;
+        const lw = tctx.measureText(line).width;
         const lx = ALIGN_NAMES[S.align] === 'center' ? x - lw / 2
                  : ALIGN_NAMES[S.align] === 'right'  ? x - lw : x;
-        ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = S.color;
-        ctx.lineWidth   = Math.max(1.5, fs / 24);
+        tctx.strokeStyle = S.color;
+        tctx.lineWidth   = Math.max(1.5, fs / 24);
         if (S.underline) {
-          ctx.beginPath();
-          ctx.moveTo(lx, y + fs * 0.14); ctx.lineTo(lx + lw, y + fs * 0.14); ctx.stroke();
+          tctx.beginPath();
+          tctx.moveTo(lx, y + fs * 0.14); tctx.lineTo(lx + lw, y + fs * 0.14); tctx.stroke();
         }
         if (S.strike) {
-          ctx.beginPath();
-          ctx.moveTo(lx, y - fs * 0.35); ctx.lineTo(lx + lw, y - fs * 0.35); ctx.stroke();
+          tctx.beginPath();
+          tctx.moveTo(lx, y - fs * 0.35); tctx.lineTo(lx + lw, y - fs * 0.35); tctx.stroke();
         }
-        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       }
     }
     y += lh;
   }
-  ctx.restore();
+  tctx.restore();
+}
+
+// ════════════════════════════════════
+//  TEXT RENDERING ON DISPLAY CANVAS
+// ════════════════════════════════════
+function drawText(w, h) {
+  // Usa px se syncTextBox já foi chamado (pw > 0), senão usa frações × dimensão canvas
+  const bx = TBOX.pw > 0 ? TBOX.px : TBOX.lf * w;
+  const by = TBOX.pw > 0 ? TBOX.py : TBOX.tf * h;
+  const bw = TBOX.pw > 0 ? TBOX.pw : TBOX.wf * w;
+  const bh = TBOX.pw > 0 ? TBOX.ph : TBOX.hf * h;
+  drawTextTo(ctx, bx, by, bw, bh, 16, TBOX.fontSize);
 }
 
 function wrapLines(ctx, text, maxW) {
@@ -987,37 +1118,28 @@ function wrapLines(ctx, text, maxW) {
 // ════════════════════════════════════
 //  FONT SIZE AUTO-FIT (binary search)
 // ════════════════════════════════════
-function calcFitFontSize(text, font, bold, italic, boxPxW, boxPxH) {
-  const pad = 10;
+function calcFitFontSize(text, font, bold, italic, boxPxW, boxPxH, mctx) {
+  mctx = mctx || ctx;
+  const pad = 16;
   const mw  = boxPxW - pad * 2;
   const mh  = boxPxH - pad * 2;
   if (mw <= 10 || mh <= 10 || !text.trim()) return 12;
 
-  function totalHeight(size) {
-    _mctx.font = (italic ? 'italic ' : '') + (bold ? 'bold ' : '') +
-                 `${size}px '${font}', Georgia, serif`;
-    const lines = [];
-    for (const para of text.split('\n')) {
-      if (!para.trim()) { lines.push(''); continue; }
-      const words = para.split(' ');
-      let line = '';
-      for (const w of words) {
-        const t = line ? line + ' ' + w : w;
-        if (_mctx.measureText(t).width > mw && line) {
-          lines.push(line); line = w;
-        } else line = t;
-      }
-      if (line) lines.push(line);
-    }
-    return lines.length * size * 1.4;
+  function measureH(size) {
+    mctx.save();
+    mctx.font = (italic ? 'italic ' : '') + (bold ? 'bold ' : '') +
+               `${size}px '${font}', Georgia, serif`;
+    const count = wrapLines(mctx, text, mw).length;
+    mctx.restore();
+    return count * size * 1.4;
   }
 
-  let lo = 6, hi = Math.min(mw * 0.9, mh * 0.9);
+  let lo = 6, hi = Math.min(mw, mh) * 0.85;
   while (hi - lo > 1) {
     const mid = Math.floor((lo + hi) / 2);
-    if (totalHeight(mid) <= mh) lo = mid; else hi = mid;
+    if (measureH(mid) <= mh) lo = mid; else hi = mid;
   }
-  return Math.max(6, lo);
+  return Math.max(6, Math.floor(lo * 0.95));
 }
 
 // ════════════════════════════════════
@@ -1047,6 +1169,8 @@ function syncTextBox() {
   const py = TBOX.tf * H;
   const pw = TBOX.wf * W;
   const ph = TBOX.hf * H;
+
+  TBOX.px = px; TBOX.py = py; TBOX.pw = pw; TBOX.ph = ph;
 
   tb.style.left   = px + 'px';
   tb.style.top    = py + 'px';
@@ -1160,6 +1284,9 @@ function initTextBoxEvents() {
 function togglePlay() {
   S.playing = !S.playing;
   S.elapsed = 0;
+  if (S.mode === 'video' && S.videoEl) {
+    if (S.playing) S.videoEl.play(); else S.videoEl.pause();
+  }
   document.getElementById('play-ic').textContent  = S.playing ? '⏸' : '▶';
   document.getElementById('play-lbl').textContent = S.playing ? 'Pausar' : 'Retomar';
   document.getElementById('play-tb').classList.toggle('on', !S.playing);
@@ -1167,27 +1294,94 @@ function togglePlay() {
 
 function pickImages() { document.getElementById('img-input').click(); }
 
+// Guarda URLs de blob das imagens atuais para revogar ao trocar o conjunto
+let _imgBlobUrls = [];
+
 function loadImages(files) {
   if (!files.length) return;
+  if (S.videoEl) { S.videoEl.pause(); URL.revokeObjectURL(S.videoEl.src); S.videoEl = null; S.videoReady = false; }
+
+  // Revogar Object URLs do conjunto anterior de imagens
+  _imgBlobUrls.forEach(u => URL.revokeObjectURL(u));
+  _imgBlobUrls = [];
+
+  S.mode = 'images';
   S.imgs = []; S.idx = 0; S.elapsed = 0;
   let done = 0;
+  let failed = 0;
   const arr = new Array(files.length);
+  const total = files.length;
+
   Array.from(files).forEach((f, i) => {
     const img = new Image();
+    const blobUrl = URL.createObjectURL(f);
+    _imgBlobUrls.push(blobUrl);
+
     img.onload = () => {
       arr[i] = img;
-      if (++done === files.length) {
-        S.imgs = arr;
+      if (++done + failed === total) {
+        S.imgs = arr.filter(Boolean);
+        if (S.imgs.length === 0) {
+          alert('Nenhuma imagem pôde ser carregada. Verifique os arquivos selecionados.');
+          return;
+        }
         S.playing = true; S.elapsed = 0;
         document.getElementById('play-ic').textContent  = '⏸';
         document.getElementById('play-lbl').textContent = 'Pausar';
         document.getElementById('play-tb').classList.remove('on');
         document.getElementById('img-count').textContent =
-          `· ${files.length} imagem${files.length > 1 ? 'ns' : ''}`;
+          `· ${S.imgs.length} imagem${S.imgs.length > 1 ? 'ns' : ''}${failed ? ` (${failed} falhou)` : ''}`;
       }
     };
-    img.src = URL.createObjectURL(f);
+
+    // Bug 4 (ALTO): tratar erros de carregamento — sem isso done nunca completa
+    img.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      _imgBlobUrls = _imgBlobUrls.filter(u => u !== blobUrl);
+      failed++;
+      if (done + failed === total) {
+        S.imgs = arr.filter(Boolean);
+        if (S.imgs.length === 0) {
+          alert('Nenhuma imagem pôde ser carregada. Verifique os arquivos selecionados.');
+          return;
+        }
+        S.playing = true; S.elapsed = 0;
+        document.getElementById('play-ic').textContent  = '⏸';
+        document.getElementById('play-lbl').textContent = 'Pausar';
+        document.getElementById('play-tb').classList.remove('on');
+        document.getElementById('img-count').textContent =
+          `· ${S.imgs.length} imagem${S.imgs.length > 1 ? 'ns' : ''} (${failed} falhou)`;
+      }
+    };
+
+    img.src = blobUrl;
   });
+}
+
+function pickVideo() { document.getElementById('video-input').click(); }
+
+function loadVideo(file) {
+  if (!file) return;
+  if (S.videoEl) { S.videoEl.pause(); URL.revokeObjectURL(S.videoEl.src); }
+  S.imgs = []; S.idx = 0; S.elapsed = 0;
+  S.mode = 'video'; S.videoReady = false;
+  const video = document.createElement('video');
+  video.muted = true; video.loop = true; video.playsInline = true;
+  video.src = URL.createObjectURL(file);
+  video.oncanplay = () => {
+    S.videoReady = true; S.playing = true;
+    video.play();
+    document.getElementById('img-count').textContent = `· ${file.name}`;
+    document.getElementById('play-ic').textContent  = '⏸';
+    document.getElementById('play-lbl').textContent = 'Pausar';
+    document.getElementById('play-tb').classList.remove('on');
+  };
+  video.onerror = () => {
+    URL.revokeObjectURL(video.src);
+    S.videoEl = null; S.videoReady = false; S.mode = 'none';
+    alert('Não foi possível carregar o vídeo. Verifique se o formato é suportado pelo seu navegador.');
+  };
+  S.videoEl = video;
 }
 
 function onSpeedChange(v) {
@@ -1262,7 +1456,7 @@ function buildFontPanel() {
   }
 
   const grid    = document.getElementById('font-grid');
-  const preview = S.text
+  const rawPreview = S.text
     ? S.text.replace(/\n/g,' ').substring(0, 42).trim() || 'Poesia que vive...'
     : 'Poesia que vive...';
 
@@ -1272,8 +1466,19 @@ function buildFontPanel() {
   FONTS.forEach(f => {
     const div = document.createElement('div');
     div.className = 'font-item' + (S.font === f ? ' sel' : '');
-    div.innerHTML = `<div class="font-nm">${f}</div>
-      <div class="font-pv" style="font-family:'${f}',serif">${preview}</div>`;
+
+    // Construção por DOM — evita XSS ao exibir texto do usuário como preview
+    const nmEl = document.createElement('div');
+    nmEl.className = 'font-nm';
+    nmEl.textContent = f;
+
+    const pvEl = document.createElement('div');
+    pvEl.className = 'font-pv';
+    pvEl.style.fontFamily = `'${f}', serif`;
+    pvEl.textContent = rawPreview; // textContent escapa HTML automaticamente
+
+    div.appendChild(nmEl);
+    div.appendChild(pvEl);
     div.onclick = () => { S.font = f; closePanels(); syncTextBox(); };
     grid.appendChild(div);
     allFontItems.push({ el: div, name: f.toLowerCase() });
@@ -1304,68 +1509,149 @@ function buildColorPanel() {
 }
 
 // ════════════════════════════════════
-//  DOWNLOAD (MediaRecorder)
+//  DOWNLOAD — 720×1280, MP4-first, 12 Mbps
 // ════════════════════════════════════
+
+// Render one frame to any canvas context at any resolution
+function renderFrame(tctx, tw, th) {
+  tctx.clearRect(0, 0, tw, th);
+  tctx.fillStyle = '#09090F';
+  tctx.fillRect(0, 0, tw, th);
+  drawMedia(tctx, tw, th);
+  if (TBOX.show && S.text.trim()) {
+    const bx = TBOX.lf * tw, by = TBOX.tf * th;
+    const bw = TBOX.wf * tw, bh = TBOX.hf * th;
+    const fs = calcFitFontSize(S.text, S.font, S.bold, S.italic, bw, bh, tctx);
+    if (fs > 0) drawTextTo(tctx, bx, by, bw, bh, 16, fs);
+  }
+}
+
 async function startDownload() {
-  if (!S.imgs.length) {
-    alert('Adicione imagens ao projeto primeiro!');
+  const hasMedia = S.mode === 'images' ? S.imgs.length > 0
+                 : S.mode === 'video'  ? (S.videoEl && S.videoReady) : false;
+  if (!hasMedia) {
+    alert('Adicione imagens ou um vídeo ao projeto primeiro!');
     return;
   }
 
-  const btn  = document.getElementById('dl-btn');
-  const ov   = document.getElementById('rec-ov');
-  const bar  = document.getElementById('rec-fill');
-  const sub  = document.getElementById('rec-sub');
+  const btn = document.getElementById('dl-btn');
+  const ov  = document.getElementById('rec-ov');
+  const bar = document.getElementById('rec-fill');
+  const sub = document.getElementById('rec-sub');
 
   btn.disabled = true;
+  S.recording = true; // sinaliza ao tick() para não modificar S.idx
   ov.classList.add('on');
   bar.style.width = '0%';
-  sub.textContent = 'Iniciando gravação...';
 
-  // Hide text box handles during recording (text still renders on canvas)
   document.getElementById('text-box').style.display = 'none';
   const wasPlaying = S.playing;
+  const wasIdx     = S.idx;
+  const wasElapsed = S.elapsed;
+
+  // High-resolution recording canvas (720p portrait, standard for Reels/Shorts)
+  const RW = 720, RH = 1280;
+  const rc   = document.createElement('canvas');
+  rc.width   = RW; rc.height = RH;
+  const rctx = rc.getContext('2d');
+
+  // MP4 preferred, WebM as fallback
+  const TYPES = [
+    'video/mp4;codecs=avc1',
+    'video/mp4;codecs=h264',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  const mime = TYPES.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const ext  = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+
+  sub.textContent = `Renderizando ${RW}×${RH} · ${ext.toUpperCase()}...`;
 
   try {
-    const TYPES = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
-    const mime  = TYPES.find(t => MediaRecorder.isTypeSupported(t)) || '';
-
-    const stream = cv.captureStream(30);
-    const rec    = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : {});
+    const stream = rc.captureStream(30);
+    const rec    = new MediaRecorder(stream,
+      mime ? { mimeType: mime, videoBitsPerSecond: 12_000_000 }
+           : { videoBitsPerSecond: 12_000_000 });
     const chunks = [];
     rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
-    S.idx = 0; S.elapsed = 0; S.lastTs = 0; S.playing = true;
-    rec.start(100);
+    const videoDuration = S.videoEl?.duration;
+    const total = S.mode === 'images'
+      ? S.imgs.length * S.speed * 1000
+      : (videoDuration && isFinite(videoDuration) && videoDuration > 0)
+        ? videoDuration * 1000
+        : 10000; // fallback de 10s para streams ao vivo ou duração inválida
 
-    const total = S.imgs.length * S.speed * 1000;
-    const t0    = performance.now();
+    // Reset video to beginning — usa timeout como fallback caso onseeked não dispare
+    // (alguns browsers não disparam onseeked se currentTime já é 0)
+    if (S.mode === 'video' && S.videoEl) {
+      await new Promise(r => {
+        if (S.videoEl.currentTime === 0) { r(); return; }
+        const onSeeked = () => { S.videoEl.removeEventListener('seeked', onSeeked); r(); };
+        S.videoEl.addEventListener('seeked', onSeeked);
+        S.videoEl.currentTime = 0;
+        setTimeout(r, 1000); // fallback: resolve após 1s se onseeked não disparar
+      });
+      S.videoEl.play();
+    }
 
+    // Recording render loop — independent of display canvas
+    let recRunning  = true;
+    let recIdx      = 0;
+    let recElapsed  = 0;
+    let recPrevTs   = null;
+    S.idx = 0; S.elapsed = 0; S.playing = true;
+
+    function recLoop(ts) {
+      if (!recRunning) return;
+
+      if (S.mode === 'images') {
+        if (recPrevTs !== null) recElapsed += Math.min(ts - recPrevTs, 100);
+        recPrevTs = ts;
+        recIdx = Math.min(S.imgs.length - 1, Math.floor(recElapsed / (S.speed * 1000)));
+        S.idx  = recIdx;
+      }
+
+      renderFrame(rctx, RW, RH);
+      requestAnimationFrame(recLoop);
+    }
+
+    rec.start(80);
+    requestAnimationFrame(recLoop);
+
+    // Progress tracking
+    const t0 = performance.now();
     await new Promise(resolve => {
       const iv = setInterval(() => {
         const el  = performance.now() - t0;
         const pct = Math.min(100, (el / total) * 100);
         bar.style.width = pct + '%';
-        const cur = Math.min(S.imgs.length, Math.floor(el / (S.speed * 1000)) + 1);
-        sub.textContent = `Imagem ${cur} de ${S.imgs.length}...`;
-        if (el >= total + 500) { clearInterval(iv); resolve(); }
-      }, 120);
+        if (S.mode === 'images') {
+          const cur = Math.min(S.imgs.length, Math.max(1, Math.floor(el / (S.speed * 1000)) + 1));
+          sub.textContent = `Imagem ${cur} de ${S.imgs.length} · ${Math.round(pct)}%`;
+        } else {
+          sub.textContent = `Gravando vídeo · ${Math.round(pct)}%`;
+        }
+        if (el >= total + 600) { clearInterval(iv); resolve(); }
+      }, 100);
     });
 
+    recRunning = false;
     rec.stop();
     stream.getTracks().forEach(t => t.stop());
-    await new Promise(r => { rec.onstop = r; });
+    await new Promise(r => { rec.addEventListener('stop', r, { once: true }); });
 
     bar.style.width = '100%';
-    sub.textContent = 'Finalizando download...';
+    sub.textContent = 'Finalizando arquivo...';
     await new Promise(r => setTimeout(r, 300));
 
-    const ext  = mime.includes('mp4') ? 'mp4' : 'webm';
     const blob = new Blob(chunks, { type: mime || 'video/webm' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url;
-    a.download = `VersoVivo_${new Date().toISOString().slice(0,10)}.${ext}`;
+    a.href     = url;
+    a.download = `VersoVivo_${new Date().toISOString().slice(0, 10)}.${ext}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 8000);
 
@@ -1373,11 +1659,15 @@ async function startDownload() {
     console.error(err);
     alert('Erro ao gerar vídeo:\n' + err.message);
   } finally {
+    S.recording = false; // libera tick() para retomar controle de S.idx
     ov.classList.remove('on');
     btn.disabled = false;
-    S.playing    = wasPlaying;
-    S.idx = 0; S.elapsed = 0;
-    // Restore text box visibility
+    S.playing  = wasPlaying;
+    S.idx      = wasIdx;
+    S.elapsed  = wasElapsed;
+    if (S.mode === 'video' && S.videoEl) {
+      if (wasPlaying) S.videoEl.play(); else S.videoEl.pause();
+    }
     if (TBOX.show && S.text.trim()) {
       document.getElementById('text-box').style.display = 'block';
     }
